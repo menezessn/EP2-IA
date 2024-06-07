@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from sklearn.metrics import confusion_matrix
+from sklearn.model_selection import train_test_split
 
 # Carregar o dataset MNIST
 (X_train, y_train), (X_test, y_test) = mnist.load_data()
@@ -23,6 +24,9 @@ X_test /= 255
 y_train = to_categorical(y_train, 10)
 y_test = to_categorical(y_test, 10)
 
+# Separa o treinamento em dois: treinamento e validação
+X_train, X_validation, y_train, y_validation = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
+
 
 
 # Construir a arquitetura da CNN
@@ -38,13 +42,13 @@ model.add(Dropout(0.5))
 model.add(Dense(10, activation='softmax'))
 
 # Compilar o modelo
-model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy', ])
 
 # Guardar os pesos iniciais
 initial_weights = [layer.get_weights() for layer in model.layers]
 
 # Treinar o modelo
-history = model.fit(X_train, y_train, validation_data=(X_test, y_test), epochs=10, batch_size=200, verbose=2)
+history = model.fit(X_train, y_train, validation_data=(X_validation, y_validation), epochs=10, batch_size=200, verbose=1)
 
 # Avaliar o modelo
 score = model.evaluate(X_test, y_test, verbose=0)

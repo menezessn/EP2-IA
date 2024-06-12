@@ -8,6 +8,56 @@ import numpy as np
 import seaborn as sns
 from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import train_test_split
+from keras_tuner import RandomSearch
+import keras_tuner as kt
+import pickle
+
+# Constrói modelo com vários hiperparâmetros que serão usados para encontrar o melhor modelo
+def build_model(hp):
+    # Sequencial, uma camada após a outra
+    model = Sequential()
+    
+    # Conv2D layers variando de 1 a 3
+    for i in range(hp.Int('conv_layers', 1, 3)):
+         # Prover input para todas as camamadas convolucionais
+        input_shape = (28, 28, 1) if i == 0 else model.layers[-1].output_shape
+
+        # Adiciona uma nova camada convolucional com filtros variando de 32 a 128 e kernels variando de 3x3 até 5x5,
+        # com função de ativação Relu em cada camada
+        model.add(Conv2D(
+            filters=hp.Int(f'filters_{i}', min_value=32, max_value=128, step=32),
+            kernel_size=hp.Choice(f'kernel_size_{i}', values=[3, 5]),
+            activation='relu',
+            input_shape=input_shape
+        ))
+
+        #Adiciona um max pooling de 2x2 ou 3x3
+        model.add(MaxPooling2D(
+            pool_size=hp.Choice(f'pool_size_{i}', values=[2, 3])
+        ))
+    
+    # Adiciona flatten que transforma a matriz multidimensional de dados (imagem 2D) em um vetor unidimensional (1D).
+    model.add(Flatten())
+    
+    # Camadas densas
+    for i in range(hp.Int('dense_layers', 1, 3)):
+        #Adiciona uma camada densa com 64 até 256 neurônios e função de ativação Relu
+        model.add(Dense(
+            units=hp.Int(f'units_{i}', min_value=64, max_value=256, step=64),
+            activation='relu'
+        ))
+        # Adiciona o dropout que adiciona ruído na rede, isto é, desativa aleatoriamente de 20% a 50% dos neurônios para
+        # melhorar a adaptabilidade da rede e não viciá-la nos dados de treinamento
+        model.add(Dropout(rate=hp.Float(f'dropout_{i}', min_value=0.2, max_value=0.5, step=0.1)))
+    
+    # Camada densa final, com 10 neurônios (´para classificar de 0 a 9) e 
+    # função de ativação softmax, ideal para problemas de classificação
+    model.add(Dense(10, activation='softmax'))
+
+    # Compila o modelo
+    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy', ])
+    
+    return model
 
 # Carregar o dataset MNIST
 (X_train, y_train), (X_test, y_test) = mnist.load_data()
@@ -27,28 +77,42 @@ y_test = to_categorical(y_test, 10)
 # Separa o treinamento em dois: treinamento e validação
 X_train, X_validation, y_train, y_validation = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
 
+# Definição da busca por melhores hiperparâmetros
+tuner = kt.Hyperband(build_model,
+                    objective='val_accuracy',
+                    max_epochs=10,
+                    factor=3,
+                    directory='my_dir',
+                    project_name='intro_to_kt')
 
+#defini
+stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5)
 
-# Construir a arquitetura da CNN
-model = Sequential()
-model.add(Conv2D(32, kernel_size=(3, 3), activation='relu', input_shape=(28, 28, 1)))
-model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Conv2D(64, kernel_size=(3, 3), activation='relu'))
-model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Dropout(0.25))
-model.add(Flatten())
-model.add(Dense(128, activation='relu'))
-model.add(Dropout(0.5))
-model.add(Dense(10, activation='softmax'))
+# Executar a busca de hiperparâmetros
+tuner.search(X_train, y_train, epochs=10, validation_data=(X_validation, y_validation), batch_size=200, verbose=1, callbacks=[stop_early])
 
-# Compilar o modelo
-model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy', ])
+# Obter os melhores hiperparâmetros
+best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
+
+print(f"Melhores hiperparâmetros: {best_hps.values}")
+
+# Constrói o modelo com os melhores hiperparâmetros por 50 épocas
+hypermodel = tuner.hypermodel.build(best_hps)
+history = hypermodel.fit(X_train, y_train, validation_data=(X_validation, y_validation), epochs=50, batch_size=200, verbose=1)
+
+# Identifica a época com a melhor acurácia
+val_acc_per_epoch = history.history['val_accuracy']
+best_epoch = val_acc_per_epoch.index(max(val_acc_per_epoch)) + 1
+print('Best epoch: %d' % (best_epoch,))
+
+# Cria o modelo com os melhores hiperparâmetros novamente
+model = tuner.hypermodel.build(best_hps)
 
 # Guardar os pesos iniciais
 initial_weights = [layer.get_weights() for layer in model.layers]
 
-# Treinar o modelo
-history = model.fit(X_train, y_train, validation_data=(X_validation, y_validation), epochs=10, batch_size=200, verbose=1)
+# Retreinar o modelo com a quantidade de épocas ideais
+history = model.fit(X_train, y_train, validation_data=(X_validation, y_validation), epochs=best_epoch, batch_size=200, verbose=1)
 
 # Avaliar o modelo
 score = model.evaluate(X_test, y_test, verbose=0)
@@ -83,24 +147,8 @@ plt.title('Training and Validation Loss')
 plt.show()
 
 # Salvar hiperparâmetros e pesos
-import pickle
 
-hyperparameters = {
-    'initialization': {'input_shape': (28, 28, 1), 'num_classes': 10},
-    'architecture': [
-        {'layer_type': 'Conv2D', 'filters': 32, 'kernel_size': (3, 3), 'activation': 'relu'},
-        {'layer_type': 'MaxPooling2D', 'pool_size': (2, 2)},
-        {'layer_type': 'Conv2D', 'filters': 64, 'kernel_size': (3, 3), 'activation': 'relu'},
-        {'layer_type': 'MaxPooling2D', 'pool_size': (2, 2)},
-        {'layer_type': 'Dropout', 'rate': 0.25},
-        {'layer_type': 'Flatten'},
-        {'layer_type': 'Dense', 'units': 128, 'activation': 'relu'},
-        {'layer_type': 'Dropout', 'rate': 0.5},
-        {'layer_type': 'Dense', 'units': 10, 'activation': 'softmax'}
-    ],
-    'compile': {'loss': 'categorical_crossentropy', 'optimizer': 'adam', 'metrics': ['accuracy']},
-    'fit': {'epochs': 10, 'batch_size': 200}
-}
+hyperparameters = best_hps
 
 # Salvar hiperparâmetros
 with open('hyperparameters.pkl', 'wb') as f:

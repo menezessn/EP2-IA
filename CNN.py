@@ -83,9 +83,11 @@ tuner = kt.Hyperband(build_model,
                     max_epochs=10,
                     factor=3,
                     directory='my_dir',
-                    project_name='intro_to_kt')
+                    project_name='intro_to_kt',
+                    max_consecutive_failed_trials=10
+                    )
 
-#defini
+#definicão de parada antecipada
 stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5)
 
 # Executar a busca de hiperparâmetros
@@ -171,6 +173,3 @@ with open('training_history.pkl', 'wb') as f:
 with open('test_predictions.pkl', 'wb') as f:
     pickle.dump(y_pred, f)
 
-# Salva a arquitetura
-with open('model_architecture.txt', 'w') as f:
-    model.summary(print_fn=lambda x: f.write(x + '\n'))

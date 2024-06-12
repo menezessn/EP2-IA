@@ -8,7 +8,7 @@ import numpy as np
 import seaborn as sns
 from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import train_test_split
-from keras_tuner import RandomSearch
+
 import keras_tuner as kt
 import pickle
 
@@ -17,31 +17,31 @@ def build_model(hp):
     # Sequencial, uma camada após a outra
     model = Sequential()
     
-    # Conv2D layers variando de 1 a 3
-    for i in range(hp.Int('conv_layers', 1, 3)):
-         # Prover input para todas as camamadas convolucionais
-        input_shape = (28, 28, 1) if i == 0 else model.layers[-1].output_shape
+    # Conv2D layers
+    model.add(Conv2D(
+        filters=hp.Int('filters_0', min_value=32, max_value=128, step=32),
+        kernel_size=hp.Choice('kernel_size_0', values=[3, 5]),
+        activation='relu',
+        input_shape=(28, 28, 1)
+    ))
+    # Adiciona um MaxPooling de 2x2 ou 3x3
+    model.add(MaxPooling2D(pool_size=hp.Choice('pool_size_0', values=[2, 3])))
 
-        # Adiciona uma nova camada convolucional com filtros variando de 32 a 128 e kernels variando de 3x3 até 5x5,
-        # com função de ativação Relu em cada camada
+    # Adiciona de 1 a 3 camadas convolucionais extras com max pooling de 2x2 ou 3x3 e
+    # filtros de 32 a 128 com tamanho de 3x3 a 5x5 e função de ativação Relu
+    for i in range(1, hp.Int('conv_layers', 1, 3)):
         model.add(Conv2D(
             filters=hp.Int(f'filters_{i}', min_value=32, max_value=128, step=32),
             kernel_size=hp.Choice(f'kernel_size_{i}', values=[3, 5]),
-            activation='relu',
-            input_shape=input_shape
+            activation='relu'
         ))
+        model.add(MaxPooling2D(pool_size=hp.Choice(f'pool_size_{i}', values=[2, 3])))
 
-        #Adiciona um max pooling de 2x2 ou 3x3
-        model.add(MaxPooling2D(
-            pool_size=hp.Choice(f'pool_size_{i}', values=[2, 3])
-        ))
-    
-    # Adiciona flatten que transforma a matriz multidimensional de dados (imagem 2D) em um vetor unidimensional (1D).
     model.add(Flatten())
     
     # Camadas densas
     for i in range(hp.Int('dense_layers', 1, 3)):
-        #Adiciona uma camada densa com 64 até 256 neurônios e função de ativação Relu
+        # Adiciona uma camada densa com 64 até 256 neurônios e função de ativação Relu
         model.add(Dense(
             units=hp.Int(f'units_{i}', min_value=64, max_value=256, step=64),
             activation='relu'

@@ -148,7 +148,8 @@ plt.show()
 
 # Salvar hiperparâmetros e pesos
 
-hyperparameters = best_hps
+hyperparameters = model.summary()
+print(hyperparameters)
 
 # Salvar hiperparâmetros
 with open('hyperparameters.pkl', 'wb') as f:
@@ -169,3 +170,7 @@ with open('training_history.pkl', 'wb') as f:
 # Salvar as saídas da rede neural para os dados de teste
 with open('test_predictions.pkl', 'wb') as f:
     pickle.dump(y_pred, f)
+
+# Salva a arquitetura
+with open('model_architecture.txt', 'w') as f:
+    model.summary(print_fn=lambda x: f.write(x + '\n'))

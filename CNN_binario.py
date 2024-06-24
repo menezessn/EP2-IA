@@ -50,9 +50,9 @@ def build_model(hp):
         # melhorar a adaptabilidade da rede e não viciá-la nos dados de treinamento
         model.add(Dropout(rate=hp.Float(f'dropout_{i}', min_value=0.2, max_value=0.5, step=0.1)))
     
-    # Camada densa final, com 10 neurônios (´para classificar de 0 a 9) e 
+    # Camada densa final, com 2 neurônios (para classificar 0s e 1s) e 
     # função de ativação softmax, ideal para problemas de classificação
-    model.add(Dense(10, activation='softmax'))
+    model.add(Dense(2, activation='softmax'))
 
     # Compila o modelo
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy', ])
@@ -78,8 +78,8 @@ X_train /= 255
 X_test /= 255
 
 # Converter os rótulos para o formato one-hot encoding
-y_train = to_categorical(y_train, 10)
-y_test = to_categorical(y_test, 10)
+y_train = to_categorical(y_train, 2)
+y_test = to_categorical(y_test, 2)
 
 # Separa o treinamento em dois: treinamento e validação
 X_train, X_validation, y_train, y_validation = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
@@ -139,7 +139,7 @@ y_true_classes = np.argmax(y_test, axis=1)
 # Plotar a matriz de confusão
 conf_matrix = confusion_matrix(y_true_classes, y_pred_classes)
 plt.figure(figsize=(10, 8))
-sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=range(10), yticklabels=range(10))
+sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=range(2), yticklabels=range(2))
 plt.xlabel('Predicted')
 plt.ylabel('True')
 plt.title('Confusion Matrix')
